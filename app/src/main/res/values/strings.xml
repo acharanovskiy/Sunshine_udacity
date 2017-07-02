@@ -5,4 +5,14 @@
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
 
+    <string-array name="dummyStrings" >
+        <item>Monday - Cloudy with light showers - 18</item>
+        <item>Tuesday - Cloudy with some sunshine - 24</item>
+        <item>Wednesday - More sunshine - 25</item>
+        <item>Thursday - Even More sunshine - 25</item>
+        <item>Friday - Only sunshine - 25</item>
+        <item>Saturday - Sunshine - 25</item>
+        <item>Sunday - What did you expect? :) - 25</item>
+    </string-array>
+
 </resources>
