@@ -5,6 +5,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.text.format.Time;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -17,17 +18,28 @@ import android.widget.ListView;
 
 import com.example.android.sunshine.app.R;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+
+import static java.util.Arrays.asList;
 
 /**
  * A placeholder fragment containing a simple view.
  */
 public class ForecastFragment extends Fragment {
+
+    private ArrayAdapter<String> weatherData;
 
     public ForecastFragment() {
     }
@@ -43,13 +55,13 @@ public class ForecastFragment extends Fragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
-        String[] weatherData = getResources().getStringArray(R.array.dummyStrings);
+        List<String> dummyData = new ArrayList<>(asList(getResources().getStringArray(R.array.dummyStrings)));
 
-        ArrayAdapter<String> data = new ArrayAdapter<>(getActivity(), R.layout.list_item_forecast,
-                R.id.list_item_forecast_textview, weatherData);
+        weatherData = new ArrayAdapter<>(getActivity(), R.layout.list_item_forecast,
+                R.id.list_item_forecast_textview, dummyData);
 
         ListView view = (ListView) rootView.findViewById(R.id.list_forecast);
-        view.setAdapter(data);
+        view.setAdapter(weatherData);
 
         return rootView;
     }
@@ -68,12 +80,22 @@ public class ForecastFragment extends Fragment {
         return super.onOptionsItemSelected(item);
     }
 
-    private class FetchWeatherTask extends AsyncTask<String, Void, String> {
+    private class FetchWeatherTask extends AsyncTask<String, Void, String[]> {
+
+        @Override
+        protected void onPostExecute(String[] strings) {
+            if( strings != null) {
+                weatherData.clear();
+                for (int i = 0; i < strings.length; i++) {
+                    weatherData.add(strings[i]);
+                }
+            }
+        }
 
         private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
 
         @Override
-        protected String doInBackground(String... strings) {
+        protected String[] doInBackground(String... strings) {
             if (strings.length == 0) {
                 return getData("31-436");
             }
@@ -81,12 +103,12 @@ public class ForecastFragment extends Fragment {
             return getData(zip);
         }
 
-        private String getData(String zipcode) {
+        private String[] getData(String zipcode) {
             HttpURLConnection conn = null;
             BufferedReader reader = null;
 
             String response = null;
-
+            String[] weatherData = null;
             try {
                 Uri.Builder builder = new Uri.Builder();
                 builder.scheme("http")
@@ -121,7 +143,8 @@ public class ForecastFragment extends Fragment {
 
                 response = buffer.toString();
 
-                Log.v(LOG_TAG, response);
+                weatherData = getWeatherData(response, 5);
+
             } catch (IOException e) {
                 Log.e(LOG_TAG, "Error ", e);
                 e.printStackTrace();
@@ -138,7 +161,59 @@ public class ForecastFragment extends Fragment {
                     }
                 }
             }
-            return response;
+            return weatherData;
+        }
+
+        private String[] getWeatherData(String response, int numDays) {
+            //"Sun, Jul 9 - Clear - 24/14"
+
+            String out[] = new String[numDays];
+            Time dayTime = new Time();
+            dayTime.setToNow();
+            int julianStartDay = Time.getJulianDay(System.currentTimeMillis(), dayTime.gmtoff);
+            dayTime = new Time();
+
+
+            try {
+                JSONObject allData = new JSONObject(response);
+                JSONArray days = allData.getJSONArray("list");
+                for (int i = 0; i < days.length(); i++) {
+                    JSONObject obj = days.getJSONObject(i);
+                    String cloud, day;
+                    double max = obj.getJSONObject("temp").getDouble("max");
+                    double min = obj.getJSONObject("temp").getDouble("min");
+                    cloud = obj.getJSONArray("weather").getJSONObject(0).getString("main");
+                    long dateTime;
+                    // Cheating to convert this to UTC time, which is what we want anyhow
+                    dateTime = dayTime.setJulianDay(julianStartDay + i);
+                    day = getReadableDateString(dateTime);
+                    out[i] = day + " - " + cloud + " - " + formatHighLows(max, min);
+                }
+            } catch (JSONException e) {
+                Log.e(LOG_TAG, e.getMessage(), e);
+            }
+
+
+            return out;
+        }
+
+        private String getReadableDateString(long time) {
+            // Because the API returns a unix timestamp (measured in seconds),
+            // it must be converted to milliseconds in order to be converted to valid date.
+            SimpleDateFormat shortenedDateFormat = new SimpleDateFormat("EEE MMM dd");
+            return shortenedDateFormat.format(time);
+        }
+
+        /**
+         * Prepare the weather high/lows for presentation.
+         */
+        private String formatHighLows(double high, double low) {
+            // For presentation, assume the user doesn't care about tenths of a degree.
+            long roundedHigh = Math.round(high);
+            long roundedLow = Math.round(low);
+
+            String highLowStr = roundedHigh + "/" + roundedLow;
+            return highLowStr;
         }
     }
 }
