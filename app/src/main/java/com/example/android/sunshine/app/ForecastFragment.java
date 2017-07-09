@@ -1,5 +1,6 @@
 package com.example.android.sunshine.app;
 
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -55,13 +56,13 @@ public class ForecastFragment extends Fragment {
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        inflater.inflate(R.menu.main, menu);
+        inflater.inflate(R.menu.fragment, menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.action_refresh) {
-            new FetchWeatherTask().execute();
+            new FetchWeatherTask().execute("31-436");
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -73,19 +74,30 @@ public class ForecastFragment extends Fragment {
 
         @Override
         protected String doInBackground(String... strings) {
-            getData();
-
-            return null;
+            if (strings.length == 0) {
+                return getData("31-436");
+            }
+            String zip = strings[0];
+            return getData(zip);
         }
 
-        private String getData() {
+        private String getData(String zipcode) {
             HttpURLConnection conn = null;
             BufferedReader reader = null;
 
             String response = null;
 
             try {
-                URL url = new URL("http://api.openweathermap.org/data/2.5/forecast/daily?zip=31-436,pl&mode=json&cnt=5&units=metric&APPID=84e95b0fb91ecd4688c0195b299e9af9");
+                Uri.Builder builder = new Uri.Builder();
+                builder.scheme("http")
+                        .authority("api.openweathermap.org")
+                        .path("data/2.5/forecast/daily")
+                        .appendQueryParameter("q", zipcode)
+                        .appendQueryParameter("mode", "json")
+                        .appendQueryParameter("cnt", "5")
+                        .appendQueryParameter("units", "metric")
+                        .appendQueryParameter("APPID", "84e95b0fb91ecd4688c0195b299e9af9");
+                URL url = new URL(builder.build().toString());
 
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
@@ -108,6 +120,8 @@ public class ForecastFragment extends Fragment {
                     return null;
 
                 response = buffer.toString();
+
+                Log.v(LOG_TAG, response);
             } catch (IOException e) {
                 Log.e(LOG_TAG, "Error ", e);
                 e.printStackTrace();
